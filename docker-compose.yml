@@ -1,0 +1,36 @@
+services:
+  web:
+    build: .
+    container_name: helpdesk_web
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/app
+      - sqlite_data:/app/data
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SECRET_KEY=dev-secret-key-change-in-prod
+      - DJANGO_DEBUG=True
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+    env_file:
+      - .env
+
+  relay:
+    build: .
+    container_name: helpdesk_relay
+    command: python manage.py run_relay --interval 5
+    volumes:
+      - .:/app
+      - sqlite_data:/app/data
+    environment:
+      - DJANGO_SECRET_KEY=dev-secret-key-change-in-prod
+      - DJANGO_DEBUG=True
+    env_file:
+      - .env
+    depends_on:
+      - web
+
+volumes:
+  sqlite_data:
