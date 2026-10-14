@@ -1,0 +1,10 @@
+--------------------------post user---------------------------------
+$cred = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("client@test.com:bento1814"))
+$headers = @{
+     "Authorization" = "Basic $cred"
+     "Content-Type" = "application/json"
+}
+$body = '{"title":"Docker test","description":"Test from Docker"}'
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/v1/tickets/" -Method POST -Headers $headers -Body $body | ConvertTo-Json
+
+---------------------------

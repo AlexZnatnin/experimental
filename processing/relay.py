@@ -1,11 +1,12 @@
 import logging
+import os
 from datetime import timedelta
 
-from django.db import models, transaction
+from django.db import models
 from django.utils import timezone
 
 from outbox.models import OutboxEvent
-from processing.handlers import handle_event
+from outbox.producer import send_event
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +17,7 @@ BATCH_SIZE = 10
 
 def relay_outbox() -> None:
     """
-    Читает pending события из outbox и обрабатывает их.
-    Меняет статус на sent при успехе.
-    При ошибке — attempts++, last_error, next_retry_at.
+    Читает pending события из outbox и отправляет их в Kafka.
     """
     now = timezone.now()
 
@@ -34,15 +33,32 @@ def relay_outbox() -> None:
 
 def _process_event(event: OutboxEvent) -> None:
     """
-    Обрабатывает одно событие.
-    Транзакция — внутри handle_event.
-    Обновление статуса — снаружи.
+    Отправляет одно событие в Kafka.
+    Меняет статус на sent при успехе.
     """
     try:
-        handle_event(event)
+        topic = os.environ.get(
+            "KAFKA_TOPIC_TICKET_EVENTS",
+            "ticket_events",
+        )
+        # Ключ = idempotency_key или event_id
+        # Для гарантии порядка по тикету — используем ticket_id
+        key = str(event.payload.get("ticket_id", str(event.event_id)))
+
+        send_event(
+            topic=topic,
+            key=key,
+            event={
+                "event_id": str(event.event_id),
+                "event_type": event.event_type,
+                "payload": event.payload,
+                "created_at": event.created_at.isoformat(),
+            },
+        )
+
         event.status = "sent"
         logger.info(
-            "Event processed: event_id=%s, event_type=%s",
+            "Event sent to Kafka: event_id=%s, event_type=%s",
             event.event_id,
             event.event_type,
         )

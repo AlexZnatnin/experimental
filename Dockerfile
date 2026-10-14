@@ -29,5 +29,3 @@ USER appuser
 # Открываем порт
 EXPOSE 8000
 
-# Точка входа
-ENTRYPOINT ["/app/entrypoint.sh"]
