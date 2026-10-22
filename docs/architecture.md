@@ -1,58 +1,76 @@
 c4
 
 #архитектура
-C4Context
-    title Контекстная диаграмма (C4 Level 1) — Django Ticket System
+```mermaid
+flowchart TB
+    %% Определение стилей в духе C4
+    classDef person fill:#08427b,stroke:#073b6e,color:#ffffff
+    classDef internal fill:#1168bd,stroke:#0f5ca6,color:#ffffff
+    classDef external fill:#999999,stroke:#888888,color:#ffffff
 
-    Person(user, "Пользователь", "Создаёт тикеты и отслеживает их статус")
+    %% Элементы диаграммы
+    user([👤 Пользователь<br><i>Создаёт тикеты и отслеживает статус</i>]):::person
+    
+    subgraph Граница системы
+        ticketSystem[Django Ticket System<br><i>Небольшое веб-приложение для обработки тикетов</i>]:::internal
+    end
 
-    System(ticketSystem, "Django Ticket System", "Небольшое веб-приложение для обработки тикетов")
+    nginx[Nginx<br><i>Reverse proxy и точка входа</i>]:::external
+    pg[PostgreSQL<br><i>Хранение данных приложений</i>]:::external
+    kafka[Kafka<br><i>Брокер сообщений для асинхронной обработки</i>]:::external
 
-    System_Ext(pg, "PostgreSQL", "Хранение данных приложений")
-    System_Ext(kafka, "Kafka", "Брокер сообщений для асинхронной обработки")
-    System_Ext(nginx, "Nginx", "Reverse proxy и точка входа")
-
-    Rel(user, nginx, "Использует HTTPS")
-    Rel(nginx, ticketSystem, "Проксирует HTTP-запросы")
-    Rel(ticketSystem, pg, "Читает и пишет данные")
-    Rel(ticketSystem, kafka, "Публикует и потребляет события")
-
+    %% Связи
+    user -->|Использует HTTPS| nginx
+    nginx -->|Проксирует HTTP-запросы| ticketSystem
+    ticketSystem -->|Читает и пишет данные| pg
+    ticketSystem -->|Публикует и потребляет события| kafka
+```
 
 
 #контейнеры
 C4Container
-    title Диаграмма контейнеров (C4 Level 2) — Django Ticket System
+ ```mermaid
+flowchart TB
+    %% Определение стилей в духе C4
+    classDef person fill:#08427b,stroke:#073b6e,color:#ffffff
+    classDef container fill:#438dd5,stroke:#3b7aa7,color:#ffffff
+    classDef external fill:#999999,stroke:#888888,color:#ffffff
+    classDef db fill:#1168bd,stroke:#0f5ca6,color:#ffffff
+    classDef queue fill:#0b7c7c,stroke:#096868,color:#ffffff
 
-    Person(user, "Пользователь", "Создаёт тикеты и отслеживает их статус")
+    %% Элементы вне границ
+    user([👤 Пользователь<br><i>Создаёт тикеты и отслеживает их статус</i>]):::person
+    pg[("🗄️ PostgreSQL<br>[База данных]<br><i>Хранит тикеты, пользователей, outbox-события</i>")]:::db
+    kafka[["📥 Kafka<br>[Брокер сообщений]<br><i>Транспорт событий между приложениями</i>"]]:::queue
 
-    Container_Boundary(edge, "Edge") {
-        Container(nginx, "Nginx", "Reverse proxy", "Терминация TLS, маршрутизация запросов")
-    }
+    %% Граница Edge
+    subgraph Edge ["Граница: Edge"]
+        nginx["Nginx<br>[Reverse proxy]<br><i>Терминация TLS, маршрутизация запросов</i>"]:::container
+    end
 
-    Container_Boundary(app, "Django Application") {
-        Container(ticket, "Ticket", "Django app", "Сериализатор и сервис создания тикета, формирует событие")
-        Container(outbox, "Outbox", "Django app", "Хранит исходящие события, продьюсер отправляет их в Kafka")
-        Container(processing, "Processing", "Django app", "Консьюмер Kafka, хэндлер и релей событий")
-        Container(notification, "Notification", "Django app", "Отправка уведомлений пользователям")
-        Container(users, "Users", "Django app", "Управление пользователями и аутентификация")
-    }
+    %% Граница Django Application
+    subgraph app ["Граница: Django Application"]
+        ticket["Ticket<br>[Django app]<br><i>Сериализатор и сервис создания тикета, формирует событие</i>"]:::container
+        outbox["Outbox<br>[Django app]<br><i>Хранит исходящие события, продьюсер отправляет их в Kafka</i>"]:::container
+        processing["Processing<br>[Django app]<br><i>Консьюмер Kafka, хэндлер и релей событий</i>"]:::container
+        notification["Notification<br>[Django app]<br><i>Отправка уведомлений пользователям</i>"]:::container
+        users["Users<br>[Django app]<br><i>Управление пользователями и аутентификация</i>"]:::container
+    end
 
-    ContainerDb(pg, "PostgreSQL", "База данных", "Хранит тикеты, пользователей, outbox-события")
-    ContainerQueue(kafka, "Kafka", "Брокер сообщений", "Транспорт событий между приложениями")
+    %% Связи и направления
+    user -->|Использует HTTPS| nginx
+    nginx -->|Проксирует HTTP-запросы| ticket
+    nginx -->|Проксирует HTTP-запросы| users
 
-    Rel(user, nginx, "Использует HTTPS")
-    Rel(nginx, ticket, "Проксирует HTTP-запросы")
-    Rel(nginx, users, "Проксирует HTTP-запросы")
+    ticket -->|Сохраняет тикет и outbox-событие [SQL]| pg
+    ticket -->|Передаёт событие создания тикета| outbox
+    outbox -->|Читает и обновляет outbox-записи [SQL]| pg
+    outbox -->|Публикует события [Kafka protocol]| kafka
 
-    Rel(ticket, pg, "Сохраняет тикет и outbox-событие", "SQL")
-    Rel(ticket, outbox, "Передаёт событие создания тикета")
-    Rel(outbox, pg, "Читает и обновляет outbox-записи", "SQL")
-    Rel(outbox, kafka, "Публикует события", "Kafka protocol")
+    kafka -->|Доставляет события| processing
+    processing -->|Обновляет статусы и записи [SQL]| pg
+    processing -->|Инициирует уведомление| notification
+    processing -->|Обновляет состояние тикета| ticket
 
-    Rel(kafka, processing, "Доставляет события")
-    Rel(processing, pg, "Обновляет статусы и записи", "SQL")
-    Rel(processing, notification, "Инициирует уведомление")
-    Rel(processing, ticket, "Обновляет состояние тикета")
-
-    Rel(users, pg, "Читает и пишет пользователей", "SQL")
-    Rel(notification, pg, "Читает данные для уведомлений", "SQL")
+    users -->|Читает и пишет пользователей [SQL]| pg
+```
