@@ -57,20 +57,21 @@ flowchart TB
         users["Users<br>[Django app]<br><i>Управление пользователями и аутентификация</i>"]:::container
     end
 
-    %% Связи и направления
+        %% Связи и направления
     user -->|Использует HTTPS| nginx
     nginx -->|Проксирует HTTP-запросы| ticket
     nginx -->|Проксирует HTTP-запросы| users
 
-    ticket -->|Сохраняет тикет и outbox-событие [SQL]| pg
+    ticket -->|"Сохраняет тикет и outbox-событие [SQL]"| pg
     ticket -->|Передаёт событие создания тикета| outbox
-    outbox -->|Читает и обновляет outbox-записи [SQL]| pg
-    outbox -->|Публикует события [Kafka protocol]| kafka
+    outbox -->|"Читает и обновляет outbox-записи [SQL]"| pg
+    outbox -->|"Публикует события [Kafka protocol]"| kafka
 
     kafka -->|Доставляет события| processing
-    processing -->|Обновляет статусы и записи [SQL]| pg
+    processing -->|"Обновляет статусы и записи [SQL]"| pg
     processing -->|Инициирует уведомление| notification
     processing -->|Обновляет состояние тикета| ticket
 
-    users -->|Читает и пишет пользователей [SQL]| pg
+    users -->|"Читает и пишет пользователей [SQL]"| pg
+
 ```
